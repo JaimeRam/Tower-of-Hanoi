@@ -1,0 +1,308 @@
+###
+### Métodos Simbólicos Práctica 3: Problema de las Torres de Hanoi en SOAR
+###
+
+###
+### Se propone implementar el problema de las Torres de Hanoi en la arquitectura
+### SOAR. El problema está compuesto por tres torres (A, B, C) y n discos de diferente 
+### tamaño. Al comienzo los discos están colocados en una torre (A) colocados en forma 
+### piramidal de menor a mayor tamaño. La implementación tratará de mover los n discos
+### de la torre A a la torre C para que queden en la misma posición. No obstante, deberá
+### cumplir las siguientes limitaciones:
+###	- Sólo se puede mover un disco cada vez.
+###	- Un disco de mayor tamaño no puede descansar sobre uno más pequeño que él mismo.
+###
+
+### Atributos para reordenar las condiciones de las reglas para el problema
+
+multi-attributes disco 5
+multi-attributes torre 3
+multi-attributes posicion 4
+multi-attributes upper-disco 2
+multi-attributes clear 2
+multi-attributes movimientos 0
+
+learn --off
+
+
+### OBJETIVO FINAL: TORRE DE HANOI
+
+sp {objetivo-a-alcanzar-torres-de-hanoi
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^name tower-of-hanoi)}
+
+
+###
+### ESTADO INICIAL y ESTADO FINAL
+###
+
+sp {definicion-del-estado-inicial-y-estado-final
+    "Problema de las Torres de Hanoi con 5 discos" 
+    (state <s> ^name tower-of-hanoi)
+    -->
+    (<s> ^disco <disco-1> <disco-2> <disco-3> <disco-4> <disco-5>
+         ^torre <torre-a> <torre-b> <torre-c> 
+         ^posicion <h1> <h2> <h3> <h4> <h5>
+         ^top-state <s>)
+    (<h1> ^disco <disco-1> ^encima <disco-2> ^on <torre-a>)     
+    (<h2> ^disco <disco-2> ^encima <disco-3> ^on <torre-a>)
+    (<h3> ^disco <disco-3> ^encima <disco-4> ^on <torre-a>)
+    (<h4> ^disco <disco-4> ^encima <disco-5> ^on <torre-a>)
+    (<h5> ^disco <disco-5> ^encima none ^on <torre-a>)
+    (<disco-1> ^name 1 ^size 1) 
+    (<disco-2> ^name 2 ^size 2)
+    (<disco-3> ^name 3 ^size 3)
+    (<disco-4> ^name 4 ^size 4)
+    (<disco-5> ^name 5 ^size 5)
+    (<torre-a> ^name |A|)
+    (<torre-b> ^name |B|)
+    (<torre-c> ^name |C|)
+    (<s> ^desired <d>)
+    (<d> ^posicion <d1> <d2> <d3> <d4> <d5>)
+    (<d1> ^disco <disco-1> ^encima <disco-2> ^on <torre-c>)
+    (<d2> ^disco <disco-2> ^encima <disco-3> ^on <torre-c>)
+    (<d3> ^disco <disco-3> ^encima <disco-4> ^on <torre-c>)
+    (<d4> ^disco <disco-4> ^encima <disco-5> ^on <torre-c>)
+    (<d5> ^disco <disco-5> ^encima none ^on <torre-c>)}
+
+###
+### INFERENCIAS y ESTADOS
+###
+
+### Caso de que el disco sea de tamaño mayor (disco(x) > disco(y)), no se puede depositar encima.
+
+sp {disco-mayor-tamanyo-encima
+    "If size-of(i) > size-of(j), then larger(i,j)."
+    (state <s> ^name tower-of-hanoi
+               ^disco <i-disco> { <> <i-disco> <j-disco> })
+    (<i-disco> ^size <i-size>)
+    (<j-disco> ^size <j-size> > <i-size>)
+    -->
+    (<j-disco> ^larger <i-disco>)}
+
+### Caso de que el disco seleccionado no tenga ningún disco por encima de él.
+    
+sp {disco-encima-vacio
+    "If not(encima(x,disco)), then upper-disco(disco)."
+    (state <s> ^name tower-of-hanoi
+               ^disco <disco>)
+   -{ (<s> ^posicion.encima <disco>) }
+    -->
+    (<s> ^upper-disco <disco>)}
+
+### La torre no contiene ningún disco, pasa a estar vacía.
+
+sp {torre-vacia
+    "If not(on(x,torre)), then clear(torre)."
+    (state <s> ^name tower-of-hanoi
+               ^torre <torre>)
+   -{ (<s> ^posicion.on <torre>) }
+    -->
+    (<s> ^clear <torre>)}
+
+###
+### OPERACIONES
+###
+
+### Mover un disco para alcanzar el estado deseado
+
+sp {mover-disco-estado-deseado
+    (state <s> ^desired <d>)
+    (<d> ^posicion <dh1>)
+    (<dh1> ^disco <m-disco> 
+           ^on <destino-torre>
+           ^satisfied *no*)
+  -{(<d> ^posicion <dh2>)
+    (<dh2> ^disco <x-disco> 
+           ^satisfied *no*)
+    (<x-disco> ^larger <m-disco>)}
+    -->
+    (<s> ^operator <o>)
+    (<o> ^name mover-disco
+         ^type poner-en-torre
+         ^disco <m-disco> 
+         ^to <destino-torre>)}
+
+### Mover un disco encima de otro mientras cumpla la regla size(x) < size(y)
+
+sp {mover-disco-encima-de-otro
+    (state <s> ^desired <d>
+               ^top-state <ts>)
+    (<ts> ^posicion <h>
+          ^torre { <> <torre1> <> <torre2> <destino-torre> })
+    (<h> ^disco <m-disco> 
+         ^encima <disco1>
+         ^on <torre2>)
+    (<d> ^mover-disco <md>)
+    (<md> ^disco <disco1>
+          ^torre <torre1>)
+    -->
+    (<s> ^operator <o>)
+    (<o> ^name mover-disco
+         ^type clear-disco
+         ^disco <m-disco> 
+         ^to <destino-torre>)}
+
+### Cambiar un disco pequeño por otro de mayor tamaño
+
+sp {cambiar-disco-pequenyo-por-grande
+    (state <s> ^desired <d>
+               ^top-state <ts>)
+    (<ts> ^posicion <h1> <h2>
+          ^torre { <> <disco1-destino> <> <disco1-origen> <destino-torre> })
+    (<h1> ^disco <m-disco>  
+          ^on <disco1-destino>)
+    (<h2> ^disco <disco1> 
+          ^on <disco1-origen>)
+    (<d> ^mover-disco <md>)
+    (<md> ^disco <disco1>
+          ^torre <disco1-destino>)
+   (<disco1> ^larger <m-disco>)
+ -{(<ts> ^posicion <h3>)
+   (<h3> ^disco <disco3> 
+         ^on <disco1-destino>)
+   (<disco3> ^larger <m-disco>)
+   (<disco1> ^larger <disco3>)}
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name mover-disco
+         ^type clear-smaller
+         ^disco <m-disco> 
+         ^to <destino-torre>)}
+
+sp {mantener-operador
+   (state <s> ^operator <o>)
+   -->
+   (<s> ^operator <o> >)}
+
+sp {estado-deseado-no-alcanzado
+    (state <s> ^name tower-of-hanoi
+               ^desired <d>
+               ^top-state <ts>)
+  -{(<ts> ^posicion <h>)
+    (<h> ^disco <m-disco>
+         ^on <destino-torre>)}
+    (<d> ^posicion <dh>)
+    (<dh> ^disco <m-disco> 
+          ^on <destino-torre>)
+    -->
+    (<dh> ^satisfied *no*)}
+
+sp {estado-deseado-alcanzado
+    (state <s> ^name tower-of-hanoi
+               ^desired.posicion <dh>
+               ^top-state.posicion <h>)
+    (<h> ^disco <m-disco>
+         ^on <destino-torre>)
+    (<dh> ^disco <m-disco> 
+          ^on <destino-torre>)
+    -->
+    (<dh> ^satisfied *yes*)}
+
+### OPERACIONES DENTRO DEL ESPACIO DE SOLUCIONES DEL PROBLEMA
+
+### Operación de mover un disco de una torre vacía a una torre vacía
+
+sp {mover-disco-de-torre-vacia-a-torre-vacia
+    (state <s> ^operator <o>
+               ^top-state <ts>)
+    (<o> ^name mover-disco
+         ^disco <m-disco> 
+         ^to <destino-torre>)
+    (<ts> ^clear <destino-torre>
+          ^upper-disco <m-disco>
+          ^posicion <h>)
+    (<h> ^disco <m-disco> 
+         ^encima none 
+         ^on { <> <destino-torre> <origen-torre> })
+    (<m-disco> ^name <m-disco-name>)
+    (<destino-torre> ^name <destino-torre-name>)
+    (<origen-torre> ^name <origen-torre-name>) 
+    -->
+    (write (crlf) |---> Mover disco | <m-disco-name> | de | <origen-torre-name> | a | <destino-torre-name>)
+    (<h> ^on <destino-torre> <origen-torre> - )}
+
+### Operación de mover un disco de una torre no vacía a una torre vacía
+
+sp {mover-disco-de-torre-no-vacia-a-torre-vacia
+    (state <s> ^operator <o>
+               ^top-state <ts>)
+    (<ts> ^clear <destino-torre> 
+          ^upper-disco <m-disco>
+          ^posicion <h>)    
+    (<o> ^name mover-disco
+         ^disco <m-disco> 
+         ^to <destino-torre>)
+    (<h> ^disco <m-disco> 
+         ^encima { <> none <adisco> } 
+         ^on { <> <destino-torre> <origen-torre> })
+    (<m-disco> ^name <m-disco-name>)
+    (<destino-torre> ^name <destino-torre-name>)
+    (<origen-torre> ^name <origen-torre-name>) 
+    -->
+    (write (crlf) |---> Mover disco | <m-disco-name> | de | <origen-torre-name> | a | <destino-torre-name>)
+    (<h> ^encima none <adisco> - 
+         ^on <destino-torre> <origen-torre> - )}
+
+### Operación de mover un disco a una torre no vacía
+
+sp {mover-disco-a-torre-vacia
+    (state <s> ^operator <o>
+               ^top-state <ts>)
+    (<ts> ^upper-disco <o-disco>
+          ^upper-disco <m-disco>
+          ^posicion <h> { <> <h> <i> })
+    (<o> ^name mover-disco
+         ^disco <m-disco> 
+         ^to <destino-torre>)
+    (<h> ^disco <m-disco> 
+         ^encima <adisco> 
+         ^on { <> <destino-torre> <origen-torre> })
+    (<i> ^disco <o-disco>
+         ^on <destino-torre>)
+    (<o-disco> ^larger <m-disco>)
+    (<m-disco> ^name <m-disco-name>)
+    (<destino-torre> ^name <destino-torre-name>)
+    (<origen-torre> ^name <origen-torre-name>) 
+    -->
+    (write (crlf) |---> Mover disco | <m-disco-name> | de | <origen-torre-name> | a | <destino-torre-name>)
+    (<h> ^encima <o-disco> <adisco> - 
+         ^on <destino-torre> <origen-torre> - )}
+
+###
+### Test para saber si se ha alcanzado el estado final
+###
+
+sp {torres-de-hannoi-estado-final
+    (state <s> ^posicion <h1> <h2> <h3> <h4> <h5>)
+    (<h1> ^disco <disco-1> ^on <torre-c>)     
+    (<h2> ^disco <disco-2> ^on <torre-c>)
+    (<h3> ^disco <disco-3> ^on <torre-c>)
+    (<h4> ^disco <disco-4> ^on <torre-c>)
+    (<h5> ^disco <disco-5> ^on <torre-c>)
+    (<disco-1> ^name 1 ) 
+    (<disco-2> ^name 2 )
+    (<disco-3> ^name 3 )
+    (<disco-4> ^name 4 )
+    (<disco-5> ^name 5 )
+    (<torre-c> ^name |C|)
+    -->
+    (write (crlf) |¡Objetivo Conseguido!|)
+    (halt)}
+
+sp {elaborate*state*top-state
+    (state <s> ^superstate <ss>)
+    (<ss> ^top-state <ts>)
+    -->
+    (<s> ^top-state <ts>)}
+
+sp {elaborate*state*desired
+    (state <s> ^superstate <ss>)
+    (<ss> ^operator <o>)
+    (<o> ^disco <disco>
+         ^to <torre>)
+    -->
+    (<s> ^desired.mover-disco <md>)
+    (<md> ^disco <disco>
+          ^torre <torre>)}
